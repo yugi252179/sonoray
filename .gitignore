@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.*
+.yarn/
+
+# Production / Builds
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# Environment configurations (Contains database passwords and secrets)
+.env
+.env.local
+.env.production
+.env.development
+.env.*.local
+*.pem
+
+# Uploads and temporary data
+uploads/*
+!uploads/.gitkeep
+*.xlsx
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# System Files
+.DS_Store
+Thumbs.db

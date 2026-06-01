@@ -1,0 +1,340 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String    @id @default(uuid())
+  email          String    @unique
+  passwordHash   String
+  role           Role      @default(FIELD_EMPLOYEE)
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  employee       Employee?
+  customer       Customer?
+  notifications  Notification[]
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  SERVICE_MANAGER
+  SALES_MANAGER
+  FIELD_EMPLOYEE
+  SALES_EMPLOYEE
+  HR
+  ACCOUNTANT
+  CUSTOMER
+}
+
+model Employee {
+  id             String    @id @default(uuid())
+  userId         String    @unique
+  user           User      @relation(fields: [userId], references: [id])
+  firstName      String
+  lastName       String
+  phone          String?
+  departmentId   String?
+  department     Department? @relation(fields: [departmentId], references: [id])
+  designation    String?
+  joiningDate    DateTime?
+  salary         Float?
+  reportingToId  String?
+  region         String?
+  profileImage   String?   @db.Text
+  
+  attendance     Attendance[]
+  leaveRequests  LeaveRequest[]
+  gpsLogs        GpsLog[]
+  ticketsAssigned Ticket[] @relation("AssignedTickets")
+  serviceReports ServiceReport[]
+  sentMessages   Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+  posts          SocialPost[]
+}
+
+model Customer {
+  id             String    @id @default(uuid())
+  userId         String    @unique
+  user           User      @relation(fields: [userId], references: [id])
+  companyName    String    // Hospital Name
+  contactName    String
+  phone          String
+  email          String?
+  address        String
+  region         String?
+  
+  machines       MachineInstallation[]
+  tickets        Ticket[]
+}
+
+model MachineInstallation {
+  id                String    @id @default(uuid())
+  serialNumber      String    @unique
+  machineName       String
+  installationDate  DateTime
+  customerId        String
+  customer          Customer  @relation(fields: [customerId], references: [id])
+  amount            Float?
+  
+  // Warranty & AMC
+  warrantyStartDate DateTime?
+  warrantyEndDate   DateTime?
+  amcStartDate      DateTime?
+  amcEndDate        DateTime?
+  
+  // New Lifecycle Fields
+  contractType      ContractType @default(WARRANTY)
+  isNamcCompleted   Boolean      @default(false)
+  serviceFrequency  Int          @default(4) // 4 services per year
+  
+  status            MachineStatus @default(ACTIVE)
+  
+  // Probes & Accessories
+  probe1Model       String?
+  probe1Serial      String?
+  probe2Model       String?
+  probe2Serial      String?
+  probe3Model       String?
+  probe3Serial      String?
+  probe4Model       String?
+  probe4Serial      String?
+  probe5Model       String?
+  probe5Serial      String?
+  otherDevice       String?
+  
+  latitude          Float?
+  longitude         Float?
+  address           String?   @db.Text
+  imageUrl          String?   @db.Text
+  
+  tickets           Ticket[]
+  serviceSchedules  ServiceSchedule[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+enum ContractType {
+  WARRANTY
+  AMC
+  NAMC
+  CMC
+  NONE
+}
+
+model ServiceSchedule {
+  id                String    @id @default(uuid())
+  machineId         String
+  machine           MachineInstallation @relation(fields: [machineId], references: [id])
+  serviceNumber     Int       // 1, 2, 3, or 4
+  scheduledDate     DateTime
+  completedDate     DateTime?
+  status            String    @default("PENDING") // PENDING, COMPLETED, OVERDUE
+  createdAt         DateTime  @default(now())
+}
+
+model SocialPost {
+  id          String   @id @default(uuid())
+  authorId    String
+  author      Employee @relation(fields: [authorId], references: [id])
+  content     String   @db.Text
+  mediaUrl    String?  @db.Text
+  mediaType   MediaType @default(NONE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  AUDIO
+  NONE
+}
+
+enum MachineStatus {
+  ACTIVE
+  UNDER_WARRANTY
+  AMC_ACTIVE
+  OUT_OF_SERVICE
+  DECOMMISSIONED
+}
+
+model Ticket {
+  id                String    @id @default(uuid())
+  customerId        String
+  customer          Customer  @relation(fields: [customerId], references: [id])
+  machineId         String?
+  machine           MachineInstallation? @relation(fields: [machineId], references: [id])
+  assignedToId      String?
+  assignedTo        Employee? @relation("AssignedTickets", fields: [assignedToId], references: [id])
+  
+  title             String
+  description       String    @db.Text
+  status            TicketStatus @default(OPEN)
+  priority          Priority     @default(MEDIUM)
+
+  // New scheduling fields
+  scheduledDate     DateTime?
+  hospitalName      String?
+  location          String?   @db.Text
+  driveUrl          String?   @db.Text
+  
+  serviceReports    ServiceReport[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model ServiceReport {
+  id                String    @id @default(uuid())
+  ticketId          String
+  ticket            Ticket    @relation(fields: [ticketId], references: [id])
+  engineerId        String
+  engineer          Employee  @relation(fields: [engineerId], references: [id])
+  
+  visitDate         DateTime  @default(now())
+  breakdownDetails  String?   @db.Text
+  workDone          String?   @db.Text
+  partsReplaced     String?   @db.Text
+  customerSignature String?   @db.Text
+  photoUrl          String?
+  driveUrl          String?   @db.Text
+  status            String?
+  
+  latitude          Float?
+  longitude         Float?
+  
+  createdAt         DateTime  @default(now())
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model GpsLog {
+  id             String    @id @default(uuid())
+  employeeId     String
+  employee       Employee  @relation(fields: [employeeId], references: [id])
+  latitude       Float
+  longitude      Float
+  address        String?   @db.Text
+  batteryLevel   Int?
+  timestamp      DateTime  @default(now())
+}
+
+model Department {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  employees   Employee[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model LeaveRequest {
+  id             String      @id @default(uuid())
+  employeeId     String
+  employee       Employee    @relation(fields: [employeeId], references: [id])
+  type           LeaveType   @default(SICK)
+  startDate      DateTime
+  endDate        DateTime
+  reason         String?     @db.Text
+  status         LeaveStatus @default(PENDING)
+  approvedBy     String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+}
+
+enum LeaveType {
+  SICK
+  CASUAL
+  ANNUAL
+  OTHER
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Attendance {
+  id             String           @id @default(uuid())
+  employeeId     String
+  employee       Employee         @relation(fields: [employeeId], references: [id])
+  status         AttendanceStatus @default(PRESENT)
+  date           DateTime         @db.Date
+  month          Int
+  year           Int
+  punchInTime    DateTime?
+  punchOutTime   DateTime?
+  remarks        String?          @db.Text
+  approvedBy     String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([employeeId, date])
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LEAVE
+  HOLIDAY
+}
+
+model Message {
+  id          String   @id @default(uuid())
+  senderId    String
+  sender      Employee @relation("SentMessages", fields: [senderId], references: [id])
+  receiverId  String
+  receiver    Employee @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  content     String   @db.Text
+  createdAt   DateTime @default(now())
+}
+
+model Stock {
+  id                String    @id @default(uuid())
+  stockId           String?   @map("stock_id")
+  machineName       String?   @map("machine_name")
+  make              String?   @map("make")           // Brand/Manufacturer
+  modelNumber       String?   @map("model_number")   // Model No
+  serialNumber      String?   @map("serial_number")  // SN No
+  category          String?   @map("category")
+  quantity          Int?      @map("quantity")
+  warehouseLocation String?   @map("warehouse_location")
+  purchaseDate      DateTime? @map("purchase_date")
+  supplierName      String?   @map("supplier_name")
+  unitPrice         Float?    @map("unit_price")
+  stockStatus       String?   @map("stock_status")
+  technicalSpecs    String?   @map("technical_specs") // Other medical info
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("machine_stock")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String   @db.Text
+  type      String   @default("INFO") // INFO, SUCCESS, WARNING, URGENT
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}

@@ -1,0 +1,14 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+  <!-- Solid deep-slate background -->
+  <path
+      android:fillColor="#0F172A"
+      android:pathData="M 0,0 L 108,0 L 108,108 L 0,108 Z"/>
+  <!-- Smooth clean blue accent triangle representing Sonoray Signals -->
+  <path
+      android:fillColor="#3B82F6"
+      android:pathData="M 54,34 L 74,74 L 34,74 Z"/>
+</vector>

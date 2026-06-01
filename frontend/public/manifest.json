@@ -1,0 +1,16 @@
+{
+  "name": "Employee Location Tracker",
+  "short_name": "Tracker",
+  "description": "AI-Powered ERP Employee Tracking System",
+  "start_url": "/employee/tracking",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/globe.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
