@@ -58,12 +58,14 @@ app.use(cors({
       ? process.env.ALLOWED_ORIGINS.split(',') 
       : [];
       
-    // Allow localhost (development), local LAN subnet IPs, and explicitly declared production domains
+    // Allow localhost (development), local LAN subnet IPs, free tunnel domains, and explicitly declared production domains
     if (!origin || 
         origin.includes('localhost') || 
         origin.includes('127.0.0.1') ||
         /^https?:\/\/192\.168\.\d+\.\d+/.test(origin) ||
         /^https?:\/\/10\.\d+\.\d+\.\d+/.test(origin) ||
+        /\.trycloudflare\.com$/.test(origin) ||
+        /\.localhost\.run$/.test(origin) ||
         allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {

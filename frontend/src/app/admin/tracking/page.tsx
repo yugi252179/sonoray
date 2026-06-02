@@ -240,9 +240,7 @@ export default function AdminTrackingPage() {
 
     fetchActive();
 
-    const socketUrl = typeof window !== 'undefined' 
-      ? `${window.location.protocol}//${window.location.hostname}:5000`
-      : '';
+    const socketUrl = typeof window !== 'undefined' ? window.location.origin : '';
     socketRef.current = io(socketUrl);
     socketRef.current.on('employeeLocationUpdate', (data: any) => {
       setLocations(prev => {

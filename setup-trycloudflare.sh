@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
+set -e          # Stop immediately on any error
+set -o pipefail # Catch errors in piped commands
 
 # ==============================================================================
 # Sonoray ERP - TryCloudflare Automated Setup & Deployment
+# No domain, no account, no configuration needed.
 # ==============================================================================
 
 # Text Color Tokens
@@ -11,94 +14,161 @@ YELLOW='\e[33m'
 BLUE='\e[34m'
 CYAN='\e[36m'
 BOLD='\e[1m'
-NC='\e[0m' # No Color
+NC='\e[0m'
 
 echo -e "${BLUE}======================================================================${NC}"
 echo -e "${GREEN}${BOLD}           SONORAY ERP - AUTOMATED TRYCLOUDFLARE DEPLOYER${NC}"
 echo -e "${BLUE}======================================================================${NC}"
 
-# Ensure script is run from the root of the repository
+# Ensure script is run from the project root
 if [ ! -d "backend" ] || [ ! -d "frontend" ]; then
-  echo -e "${RED}Error: Please run this script from the root of the sonoray project directory.${NC}"
+  echo -e "${RED}Error: Run this script from the root of the sonoray project.${NC}"
   exit 1
 fi
 
-# 1. Fix APT Repository Conflict Error and Install Cloudflared
-echo -e "\n${YELLOW}[1/5] Ensuring Cloudflared is installed via direct package download...${NC}"
-if ! command -v cloudflared &> /dev/null; then
-  echo -e "${CYAN}Downloading latest official cloudflared package...${NC}"
-  wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-  echo -e "${CYAN}Installing package...${NC}"
-  sudo dpkg -i cloudflared-linux-amd64.deb >/dev/null 2>&1
-  rm -f cloudflared-linux-amd64.deb
+# Ensure root privileges for install steps
+if [ "$EUID" -ne 0 ]; then
+  echo -e "${RED}Error: Run with sudo: sudo ./setup-trycloudflare.sh${NC}"
+  exit 1
 fi
-echo -e "${GREEN}✓ Cloudflared is successfully installed!${NC}"
 
+# ─────────────────────────────────────────────────────────────
+# STEP 1 — Install Node.js v20 LTS
+# ─────────────────────────────────────────────────────────────
+echo -e "\n${YELLOW}[1/6] Installing Node.js v20 LTS...${NC}"
+if ! command -v node &>/dev/null; then
+  apt-get update -y > /dev/null 2>&1
+  apt-get install -y curl wget git build-essential > /dev/null 2>&1
+  mkdir -p /etc/apt/keyrings
+  curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+  echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list > /dev/null
+  apt-get update -y > /dev/null 2>&1 && apt-get install -y nodejs > /dev/null 2>&1
+  echo -e "${GREEN}✓ Node.js $(node -v) installed!${NC}"
+else
+  echo -e "${GREEN}✓ Node.js $(node -v) already installed.${NC}"
+fi
 
-# 2. Build the Backend & Prepare the Database
-echo -e "\n${YELLOW}[2/5] Building Backend and setting up MySQL Database...${NC}"
+# ─────────────────────────────────────────────────────────────
+# STEP 2 — Install PM2
+# ─────────────────────────────────────────────────────────────
+echo -e "\n${YELLOW}[2/6] Installing PM2 Process Manager...${NC}"
+if ! command -v pm2 &>/dev/null; then
+  npm install -g pm2 > /dev/null 2>&1
+  echo -e "${GREEN}✓ PM2 installed!${NC}"
+else
+  echo -e "${GREEN}✓ PM2 already installed.${NC}"
+fi
+
+# ─────────────────────────────────────────────────────────────
+# STEP 3 — Install MySQL and create database
+# ─────────────────────────────────────────────────────────────
+echo -e "\n${YELLOW}[3/6] Installing MySQL and creating 'sonoray' database...${NC}"
+if ! command -v mysql &>/dev/null; then
+  apt-get install -y mysql-server > /dev/null 2>&1
+  systemctl start mysql
+  systemctl enable mysql > /dev/null 2>&1
+fi
+# On fresh Ubuntu, MySQL root uses auth_socket (no password).
+# After first run, it uses native password 'root'. Handle both cases.
+python3 - <<'PYEOF'
+import subprocess, sys
+
+SQL = """
+ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root';
+FLUSH PRIVILEGES;
+CREATE DATABASE IF NOT EXISTS sonoray;
+"""
+
+# Try with password 'root' first (subsequent runs)
+r = subprocess.run(['mysql', '-u', 'root', '-proot', '-e', SQL], capture_output=True)
+if r.returncode == 0:
+    sys.exit(0)
+
+# Fall back to sudo mysql (fresh Ubuntu install, auth_socket)
+r2 = subprocess.run(['sudo', 'mysql', '-u', 'root', '-e', SQL], capture_output=True)
+if r2.returncode == 0:
+    sys.exit(0)
+
+print("MySQL setup failed:\n", r2.stderr.decode())
+sys.exit(1)
+PYEOF
+echo -e "${GREEN}✓ MySQL running. Database 'sonoray' ready.${NC}"
+
+# ─────────────────────────────────────────────────────────────
+# STEP 4 — Install cloudflared
+# ─────────────────────────────────────────────────────────────
+echo -e "\n${YELLOW}[4/6] Installing Cloudflare Tunnel (cloudflared)...${NC}"
+if ! command -v cloudflared &>/dev/null; then
+  wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+  dpkg -i cloudflared-linux-amd64.deb > /dev/null 2>&1
+  rm -f cloudflared-linux-amd64.deb
+  echo -e "${GREEN}✓ Cloudflared installed!${NC}"
+else
+  echo -e "${GREEN}✓ Cloudflared already installed.${NC}"
+fi
+
+# ─────────────────────────────────────────────────────────────
+# STEP 5 — Build apps, seed DB, and start with PM2
+# ─────────────────────────────────────────────────────────────
+echo -e "\n${YELLOW}[5/6] Building apps and initializing database...${NC}"
+
 cd backend
-echo -e "${CYAN}Installing backend packages...${NC}"
+echo -e "${CYAN}  → Installing backend packages...${NC}"
 npm install
-echo -e "${CYAN}Generating Prisma Client...${NC}"
+echo -e "${CYAN}  → Generating Prisma client...${NC}"
 npm run db:generate
-echo -e "${CYAN}Pushing database tables to MySQL...${NC}"
+echo -e "${CYAN}  → Pushing database schema to MySQL...${NC}"
 npm run db:push
-echo -e "${CYAN}Seeding initial ERP demo data...${NC}"
+echo -e "${CYAN}  → Seeding initial demo data...${NC}"
 npm run seed:demo
-echo -e "${CYAN}Compiling TypeScript backend source...${NC}"
+echo -e "${CYAN}  → Compiling TypeScript to JavaScript...${NC}"
 npm run build
 cd ..
-echo -e "${GREEN}✓ Backend built and database prepared successfully!${NC}"
 
-# 3. Build the Frontend Web App
-echo -e "\n${YELLOW}[3/5] Building Next.js Frontend Web Application...${NC}"
 cd frontend
-echo -e "${CYAN}Installing frontend packages...${NC}"
+echo -e "${CYAN}  → Installing frontend packages...${NC}"
 npm install
-echo -e "${CYAN}Compiling Next.js production files...${NC}"
+echo -e "${CYAN}  → Building Next.js production app...${NC}"
 npm run build
 cd ..
-echo -e "${GREEN}✓ Frontend built successfully!${NC}"
 
-# 4. Start services under PM2
-echo -e "\n${YELLOW}[4/5] Starting application servers under PM2 Process Management...${NC}"
-# Delete previous processes to ensure fresh ports
-pm2 delete sonoray-backend sonoray-frontend >/dev/null 2>&1
+echo -e "${CYAN}  → Starting apps under PM2...${NC}"
+pm2 delete sonoray-backend sonoray-frontend > /dev/null 2>&1
 pm2 start ecosystem.config.js
-pm2 save
-echo -e "${GREEN}✓ Background servers successfully started!${NC}"
+pm2 save > /dev/null 2>&1
+echo -e "${GREEN}✓ Both apps running in background!${NC}"
 
-# 5. Start the TryCloudflare Tunnel in the background
-echo -e "\n${YELLOW}[5/5] Launching your TryCloudflare Free Tunnel...${NC}"
+# ─────────────────────────────────────────────────────────────
+# STEP 6 — Launch free TryCloudflare tunnel
+# ─────────────────────────────────────────────────────────────
+echo -e "\n${YELLOW}[6/6] Launching your FREE Cloudflare tunnel...${NC}"
+echo -e "${CYAN}  No account or domain required!${NC}"
 rm -f tunnel.log
 cloudflared tunnel --url http://localhost:3000 > tunnel.log 2>&1 &
 TUNNEL_PID=$!
 
-echo -e "${CYAN}Waiting for Cloudflare to generate your secure link...${NC}"
+echo -e "${CYAN}Waiting for Cloudflare to assign your secure URL...${NC}"
 URL=""
-for i in {1..15}; do
+for i in {1..20}; do
   sleep 1
-  URL=$(grep -oE "https://[a-zA-Z0-9.-]+\.trycloudflare\.com" tunnel.log | head -n 1)
+  URL=$(grep -oE "https://[a-zA-Z0-9.-]+\.trycloudflare\.com" tunnel.log 2>/dev/null | head -n 1 || true)
   if [ -n "$URL" ]; then
     break
   fi
 done
 
 if [ -z "$URL" ]; then
-  echo -e "${RED}Error: Cloudflare tunnel timed out or failed to start.${NC}"
-  echo -e "Showing recent logs to debug:${NC}"
+  echo -e "${RED}Error: Tunnel timed out. Showing logs:${NC}"
   cat tunnel.log
   exit 1
 fi
 
-echo -e "\n${GREEN}${BOLD}======================================================================${NC}"
-echo -e "${GREEN}${BOLD}🎉 SUCCESS! YOUR WEBSITE IS LIVE ON THE INTERNET!${NC}"
-echo -e "${GREEN}${BOLD}======================================================================${NC}"
-echo -e " 👉 ${CYAN}${BOLD}$URL${NC}"
-echo -e "${GREEN}${BOLD}======================================================================${NC}"
-echo -e "${YELLOW}Leave this terminal open. To stop the tunnel, press Ctrl+C.${NC}\n"
+echo -e "\n${GREEN}${BOLD}=====================================================================${NC}"
+echo -e "${GREEN}${BOLD}  🎉 YOUR WEBSITE IS LIVE! Share this URL with anyone:${NC}"
+echo -e "${GREEN}${BOLD}=====================================================================${NC}"
+echo -e "   👉 ${CYAN}${BOLD}$URL${NC}"
+echo -e "${GREEN}${BOLD}=====================================================================${NC}"
+echo -e "${YELLOW}Keep this terminal open. Press Ctrl+C to stop the tunnel.${NC}\n"
 
-# Maintain the running tunnel
+# Keep alive
 wait $TUNNEL_PID
-

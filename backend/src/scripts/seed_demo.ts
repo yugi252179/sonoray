@@ -6,15 +6,19 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Seeding demo data...');
 
-  // 1. Find the Super Admin user
-  const user = await prisma.user.findUnique({
-    where: { email: 'admin@sonoray.com' }
+  // 1. Create or reset the Super Admin user
+  const passwordHash = await bcrypt.hash('admin', 10);
+  const user = await prisma.user.upsert({
+    where: { email: 'admin@sonoray.com' },
+    update: { passwordHash, isActive: true, role: 'SUPER_ADMIN' },
+    create: {
+      email: 'admin@sonoray.com',
+      passwordHash,
+      role: 'SUPER_ADMIN',
+      isActive: true,
+    }
   });
-
-  if (!user) {
-    console.error('❌ User admin@sonoray.com not found. Please create it first.');
-    return;
-  }
+  console.log(`✅ Admin user ready: admin@sonoray.com / password: admin`);
 
   // 2. Create a Department if it doesn't exist
   const dept = await prisma.department.upsert({

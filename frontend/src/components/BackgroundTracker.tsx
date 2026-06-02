@@ -83,11 +83,9 @@ export default function BackgroundTracker() {
       }
     }
 
-    // Connect to WebSocket
+    // Connect to WebSocket through Next.js rewrite (works locally AND through Cloudflare tunnel)
     if (!socketRef.current) {
-      const socketUrl = typeof window !== 'undefined'
-        ? `${window.location.protocol}//${window.location.hostname}:5000`
-        : '';
+      const socketUrl = typeof window !== 'undefined' ? window.location.origin : '';
       socketRef.current = io(socketUrl);
       const employeeId = localStorage.getItem('employeeId');
       if (employeeId) {
