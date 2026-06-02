@@ -68,11 +68,12 @@ if ! command -v mysql &>/dev/null; then
   systemctl start mysql
   systemctl enable mysql > /dev/null 2>&1
 fi
-# Create database and dedicated app user (works on ALL MySQL versions without touching root auth)
+# Create database and dedicated app user (always drop and recreate to force update credentials)
 echo -e "${CYAN}  Setting up sonoray database and app user...${NC}"
 sudo mysql -u root <<'SQLEOF'
 CREATE DATABASE IF NOT EXISTS sonoray;
-CREATE USER IF NOT EXISTS 'sonoray_user'@'localhost' IDENTIFIED BY 'Sonoray2026';
+DROP USER IF EXISTS 'sonoray_user'@'localhost';
+CREATE USER 'sonoray_user'@'localhost' IDENTIFIED BY 'Sonoray2026';
 GRANT ALL PRIVILEGES ON sonoray.* TO 'sonoray_user'@'localhost';
 FLUSH PRIVILEGES;
 SQLEOF
