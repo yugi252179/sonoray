@@ -12,7 +12,7 @@ module.exports = {
       env: {
         NODE_ENV: "production",
         PORT: 5000,
-        DATABASE_URL: "mysql://sonoray_user:Sonoray@2026@localhost:3306/sonoray",
+        DATABASE_URL: "mysql://sonoray_user:Sonoray2026@localhost:3306/sonoray",
         JWT_SECRET: "sonoray_production_secret_key_2026"
       }
     },
