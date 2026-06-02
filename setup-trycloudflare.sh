@@ -125,7 +125,7 @@ cd ..
 
 cd frontend
 echo -e "${CYAN}  → Installing frontend packages...${NC}"
-npm install
+npm install --legacy-peer-deps
 echo -e "${CYAN}  → Building Next.js production app...${NC}"
 npm run build
 cd ..
