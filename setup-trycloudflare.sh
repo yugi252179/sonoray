@@ -24,14 +24,16 @@ if [ ! -d "backend" ] || [ ! -d "frontend" ]; then
 fi
 
 # 1. Fix APT Repository Conflict Error and Install Cloudflared
-echo -e "\n${YELLOW}[1/5] Repairing system APT lists and ensuring Cloudflared is installed...${NC}"
-sudo rm -f /etc/apt/sources.list.d/cloudflared.list
-sudo rm -f /etc/apt/sources.list.d/cloudflare.list
-curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null 2>&1
-echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main" | sudo tee /etc/apt/sources.list.d/cloudflared.list >/dev/null
-sudo apt-get update -y >/dev/null 2>&1
-sudo apt-get install -y cloudflared >/dev/null 2>&1
-echo -e "${GREEN}✓ Cloudflared successfully installed & APT repaired!${NC}"
+echo -e "\n${YELLOW}[1/5] Ensuring Cloudflared is installed via direct package download...${NC}"
+if ! command -v cloudflared &> /dev/null; then
+  echo -e "${CYAN}Downloading latest official cloudflared package...${NC}"
+  wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+  echo -e "${CYAN}Installing package...${NC}"
+  sudo dpkg -i cloudflared-linux-amd64.deb >/dev/null 2>&1
+  rm -f cloudflared-linux-amd64.deb
+fi
+echo -e "${GREEN}✓ Cloudflared is successfully installed!${NC}"
+
 
 # 2. Build the Backend & Prepare the Database
 echo -e "\n${YELLOW}[2/5] Building Backend and setting up MySQL Database...${NC}"
