@@ -111,29 +111,36 @@ ENVEOF
   echo -e "${GREEN}  ✓ backend/.env created!${NC}"
 fi
 
+# Run npm commands as the actual user (not root) to prevent node_modules permission issues
+ACTUAL_USER=${SUDO_USER:-$(whoami)}
+export HOME_DIR=$(eval echo "~$ACTUAL_USER")
+
 echo -e "${CYAN}  → Installing backend packages...${NC}"
-npm install
+sudo -u "$ACTUAL_USER" npm install
 echo -e "${CYAN}  → Generating Prisma client...${NC}"
-npm run db:generate
+sudo -u "$ACTUAL_USER" npm run db:generate
 echo -e "${CYAN}  → Pushing database schema to MySQL...${NC}"
-npm run db:push
+sudo -u "$ACTUAL_USER" npm run db:push
 echo -e "${CYAN}  → Seeding initial demo data...${NC}"
-npm run seed:demo
+sudo -u "$ACTUAL_USER" npm run seed:demo
 echo -e "${CYAN}  → Compiling TypeScript to JavaScript...${NC}"
-npm run build
+sudo -u "$ACTUAL_USER" npm run build
 cd ..
 
 cd frontend
 echo -e "${CYAN}  → Installing frontend packages...${NC}"
-npm install --legacy-peer-deps
+sudo -u "$ACTUAL_USER" npm install --legacy-peer-deps
 echo -e "${CYAN}  → Building Next.js production app...${NC}"
-npm run build
+sudo -u "$ACTUAL_USER" npm run build
 cd ..
 
+# Fix ownership of the whole project so the user owns all files
+chown -R "$ACTUAL_USER":"$ACTUAL_USER" .
+
 echo -e "${CYAN}  → Starting apps under PM2...${NC}"
-pm2 delete sonoray-backend sonoray-frontend > /dev/null 2>&1
-pm2 start ecosystem.config.js
-pm2 save > /dev/null 2>&1
+sudo -u "$ACTUAL_USER" pm2 delete sonoray-backend sonoray-frontend > /dev/null 2>&1 || true
+sudo -u "$ACTUAL_USER" pm2 start ecosystem.config.js
+sudo -u "$ACTUAL_USER" pm2 save > /dev/null 2>&1
 echo -e "${GREEN}✓ Both apps running in background!${NC}"
 
 # ─────────────────────────────────────────────────────────────
