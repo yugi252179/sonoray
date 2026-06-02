@@ -68,23 +68,20 @@ if ! command -v mysql &>/dev/null; then
   systemctl start mysql
   systemctl enable mysql > /dev/null 2>&1
 fi
-# On fresh Ubuntu, MySQL root uses auth_socket (no password).
-# After first run, it uses native password 'root'. Handle both cases.
+# MySQL 8.0: default auth = mysql_native_password
+# MySQL 8.4: mysql_native_password removed — use IDENTIFIED BY without plugin
 python3 - <<'PYEOF'
 import subprocess, sys
 
-SQL = """
-ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root';
-FLUSH PRIVILEGES;
-CREATE DATABASE IF NOT EXISTS sonoray;
-"""
+# Use IDENTIFIED BY (no plugin) — compatible with MySQL 8.0 and 8.4
+SQL = "ALTER USER 'root'@'localhost' IDENTIFIED BY 'root'; FLUSH PRIVILEGES; CREATE DATABASE IF NOT EXISTS sonoray;"
 
-# Try with password 'root' first (subsequent runs)
+# Try with existing password 'root' (re-runs)
 r = subprocess.run(['mysql', '-u', 'root', '-proot', '-e', SQL], capture_output=True)
 if r.returncode == 0:
     sys.exit(0)
 
-# Fall back to sudo mysql (fresh Ubuntu install, auth_socket)
+# Fresh install — root has no password, connect via sudo
 r2 = subprocess.run(['sudo', 'mysql', '-u', 'root', '-e', SQL], capture_output=True)
 if r2.returncode == 0:
     sys.exit(0)
