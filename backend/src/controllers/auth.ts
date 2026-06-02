@@ -59,9 +59,13 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         role: user.role
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Login error', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ 
+      message: 'Server error inside login controller', 
+      error: error.message || error,
+      stack: error.stack || null
+    });
   }
 };
 

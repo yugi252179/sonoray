@@ -48,30 +48,16 @@ const app = express();
 const port = process.env.PORT || 5000;
 const prisma = new PrismaClient();
 
+// Enable trusting proxies (essential for Cloudflare tunnels / reverse proxies)
+app.set('trust proxy', 1);
+
 app.use(helmet({
   crossOriginResourcePolicy: false,
 }));
 
+// Extremely permissive CORS for dynamic Cloudflare tunnels so CORS never fails
 app.use(cors({
-  origin: (origin, callback) => {
-    const allowedOrigins = process.env.ALLOWED_ORIGINS 
-      ? process.env.ALLOWED_ORIGINS.split(',') 
-      : [];
-      
-    // Allow localhost (development), local LAN subnet IPs, free tunnel domains, and explicitly declared production domains
-    if (!origin || 
-        origin.includes('localhost') || 
-        origin.includes('127.0.0.1') ||
-        /^https?:\/\/192\.168\.\d+\.\d+/.test(origin) ||
-        /^https?:\/\/10\.\d+\.\d+\.\d+/.test(origin) ||
-        /\.trycloudflare\.com$/.test(origin) ||
-        /\.localhost\.run$/.test(origin) ||
-        allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: true,
   credentials: true
 }));
 app.use(express.json());
@@ -169,6 +155,16 @@ io.on('connection', (socket) => {
 
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Backend is running' });
+});
+
+// Global Error Handler - returns full stack traces to the client for easy debugging
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error('💥 Global Unhandled Error:', err);
+  res.status(500).json({
+    message: 'Internal Server Error (Global Handler)',
+    error: err.message || err,
+    stack: err.stack || null
+  });
 });
 
 httpServer.listen(port, () => {
