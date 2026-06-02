@@ -69,13 +69,36 @@ pm2 start ecosystem.config.js
 pm2 save
 echo -e "${GREEN}✓ Background servers successfully started!${NC}"
 
-# 5. Start the TryCloudflare Tunnel
+# 5. Start the TryCloudflare Tunnel in the background
 echo -e "\n${YELLOW}[5/5] Launching your TryCloudflare Free Tunnel...${NC}"
-echo -e "${BLUE}======================================================================${NC}"
-echo -e "${BOLD}Your free public website URL will appear in a moment below.${NC}"
-echo -e "${BOLD}Look for a line that starts with: ${GREEN}https://...trycloudflare.com${NC}"
-echo -e "${BLUE}======================================================================${NC}"
-echo ""
+rm -f tunnel.log
+cloudflared tunnel --url http://localhost:3000 > tunnel.log 2>&1 &
+TUNNEL_PID=$!
 
-# Run the Cloudflare Tunnel
-cloudflared tunnel --url http://localhost:3000
+echo -e "${CYAN}Waiting for Cloudflare to generate your secure link...${NC}"
+URL=""
+for i in {1..15}; do
+  sleep 1
+  URL=$(grep -oE "https://[a-zA-Z0-9.-]+\.trycloudflare\.com" tunnel.log | head -n 1)
+  if [ -n "$URL" ]; then
+    break
+  fi
+done
+
+if [ -z "$URL" ]; then
+  echo -e "${RED}Error: Cloudflare tunnel timed out or failed to start.${NC}"
+  echo -e "Showing recent logs to debug:${NC}"
+  cat tunnel.log
+  exit 1
+fi
+
+echo -e "\n${GREEN}${BOLD}======================================================================${NC}"
+echo -e "${GREEN}${BOLD}🎉 SUCCESS! YOUR WEBSITE IS LIVE ON THE INTERNET!${NC}"
+echo -e "${GREEN}${BOLD}======================================================================${NC}"
+echo -e " 👉 ${CYAN}${BOLD}$URL${NC}"
+echo -e "${GREEN}${BOLD}======================================================================${NC}"
+echo -e "${YELLOW}Leave this terminal open. To stop the tunnel, press Ctrl+C.${NC}\n"
+
+# Maintain the running tunnel
+wait $TUNNEL_PID
+
