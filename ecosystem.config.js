@@ -2,8 +2,7 @@ module.exports = {
   apps: [
     {
       name: "sonoray-backend",
-      script: "npm",
-      args: "run start",
+      script: "dist/index.js",
       cwd: "./backend",
       instances: 1,
       autorestart: true,
@@ -11,15 +10,13 @@ module.exports = {
       max_memory_restart: "1G",
       env: {
         NODE_ENV: "production",
-        PORT: 5000,
-        DATABASE_URL: "mysql://sonoray_user:Sonoray2026@localhost:3306/sonoray",
-        JWT_SECRET: "sonoray_production_secret_key_2026"
+        PORT: 5000
       }
     },
     {
       name: "sonoray-frontend",
-      script: "npm",
-      args: "run start",
+      script: "node_modules/next/dist/bin/next",
+      args: "start",
       cwd: "./frontend",
       instances: 1,
       autorestart: true,

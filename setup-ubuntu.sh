@@ -38,12 +38,14 @@ apt-get install -y mysql-server
 systemctl start mysql
 systemctl enable mysql
 
-# Configure MySQL root credentials (matching local backend .env: root/root)
-echo -e "\e[33mConfiguring MySQL database 'sonoray' with user 'root'...\e[0m"
+# Configure MySQL database and user credentials
+echo -e "\e[33mConfiguring MySQL database 'sonoray' and user 'sonoray_user'...\e[0m"
 mysql -u root <<EOF
-ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root';
-FLUSH PRIVILEGES;
 CREATE DATABASE IF NOT EXISTS sonoray;
+DROP USER IF EXISTS 'sonoray_user'@'localhost';
+CREATE USER 'sonoray_user'@'localhost' IDENTIFIED BY 'Sonoray2026';
+GRANT ALL PRIVILEGES ON sonoray.* TO 'sonoray_user'@'localhost';
+FLUSH PRIVILEGES;
 EOF
 
 # 5. Install Cloudflare Tunnel (cloudflared)
