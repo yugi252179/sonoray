@@ -43,7 +43,7 @@ echo -e "\e[33mConfiguring MySQL database 'sonoray' and user 'sonoray_user'...\e
 mysql -u root <<EOF
 CREATE DATABASE IF NOT EXISTS sonoray;
 DROP USER IF EXISTS 'sonoray_user'@'localhost';
-CREATE USER 'sonoray_user'@'localhost' IDENTIFIED BY 'Sonoray2026';
+CREATE USER 'sonoray_user'@'localhost' IDENTIFIED WITH mysql_native_password BY 'Sonoray2026';
 GRANT ALL PRIVILEGES ON sonoray.* TO 'sonoray_user'@'localhost';
 FLUSH PRIVILEGES;
 EOF
